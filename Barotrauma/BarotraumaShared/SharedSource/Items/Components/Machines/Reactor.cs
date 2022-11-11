@@ -276,7 +276,11 @@ namespace Barotrauma.Items.Components
 
             if (signalControlledTargetFissionRate.HasValue && lastReceivedFissionRateSignalTime > Timing.TotalTime - 1)
             {
+                float oldFissionRate = TargetFissionRate;
                 TargetFissionRate = adjustValueWithoutOverShooting(TargetFissionRate, signalControlledTargetFissionRate.Value, deltaTime * wiredControlSpeed);
+
+                float damage = fissionRateWear(TargetFissionRate, oldFissionRate, deltaTime);
+                Item.Condition = Item.Condition - damage > 20 ? Item.Condition - damage : Item.Condition;
 #if CLIENT
                 FissionRateScrollBar.BarScroll = TargetFissionRate / 100.0f;
 #endif
@@ -427,6 +431,13 @@ namespace Barotrauma.Items.Components
                 sendUpdateTimer = NetworkUpdateIntervalHigh;
                 unsentChanges = false;
             }
+        }
+
+        /// <summary>
+        /// Returns the amount the reactor's condition should go down for a given change in fission rate.
+        /// </summary>
+        private float fissionRateWear(float fissionRate, float oldFissionRate, float deltaTime) {
+            return (Math.Abs(fissionRate - oldFissionRate) / 100) * deltaTime * 150.0f;
         }
 
         /// <summary>
@@ -593,6 +604,8 @@ namespace Barotrauma.Items.Components
             float desiredTurbineOutput = (optimalTurbineOutput.X + optimalTurbineOutput.Y) / 2.0f;
             TargetTurbineOutput += MathHelper.Clamp(desiredTurbineOutput - TargetTurbineOutput, -speed, speed) * deltaTime;
             TargetTurbineOutput = MathHelper.Clamp(TargetTurbineOutput, 0.0f, 100.0f);
+            
+            float oldFissionRate = TargetFissionRate;
 
             float desiredFissionRate = (optimalFissionRate.X + optimalFissionRate.Y) / 2.0f;
             TargetFissionRate += MathHelper.Clamp(desiredFissionRate - TargetFissionRate, -speed, speed) * deltaTime;
@@ -611,6 +624,9 @@ namespace Barotrauma.Items.Components
             //otherwise we may "overshoot", cranking the target fission rate all the way up because it takes a while
             //for the actual fission rate and temperature to follow
             TargetFissionRate = MathHelper.Clamp(TargetFissionRate, FissionRate - 5, FissionRate + 5);
+
+            float damage = fissionRateWear(TargetFissionRate, oldFissionRate, deltaTime);
+            Item.Condition = Item.Condition - damage > 20 ? Item.Condition - damage : Item.Condition; 
         }
 
         public void PowerUpImmediately()
